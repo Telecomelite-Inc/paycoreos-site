@@ -4,6 +4,7 @@ import { ADDRESS, EMAIL, esc, FOOTER_LINE, PHONE_DISPLAY, PHONE_TEL, SITE_ORIGIN
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/services", label: "Services" },
+  { href: "/book", label: "Book" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
   { href: "/apply", label: "Apply", cta: true },
@@ -22,6 +23,7 @@ const FOOTER_LINKS = [
   ["/services", "Services"],
   ["/apply", "Apply"],
   ["/about", "About"],
+  ["/book", "Book a time"],
   ["/contact", "Contact"],
   ["/application-fee", "Application fee"],
   ["/privacy", "Privacy"],
@@ -124,6 +126,7 @@ export function appShell(opts: { title: string; hostname: string; path: string; 
     opts.kind === "admin"
       ? [
           ["/admin", "Applications"],
+          ["/admin/bookings", "Bookings"],
           ["/admin/processors", "Processors"],
           ["/admin/fields", "Fields"],
           ["/admin/statuses", "Statuses"],

@@ -275,7 +275,7 @@ export async function renderFee(c: AppContext): Promise<Response> {
   const main = `<article class="wrap prose">
     <h1>Application saved</h1>
     <p>We have the ${esc(categoryLabel(app.category).toLowerCase())} application <strong>${esc(app.public_ref)}</strong>. ${app.buyer_type ? esc(buyerLabel(app.buyer_type)) + "." : ""} Status: ${esc(app.status_label || "Application received")}.</p>
-    <p>PaycoreOS will call to go over the file.</p>
+    <p>PaycoreOS will call to go over the file. <a href="/book">Pick a time for that call</a>.</p>
     ${feeBox()}
     <p><button type="button" class="btn-p" disabled aria-disabled="true">Pay $39</button></p>
     <p>The pay button stays off until the fee account is ready. The fee is not collected until then. We do not take a card number on this page. There is no charge.</p>
@@ -391,6 +391,7 @@ function applyMain(input: {
     <header class="page-head">
       <h1>Apply to PaycoreOS</h1>
       <p class="lede">Choose a category. The form on this page is the one for that category. Dispute defense is its own form.</p>
+      <p>Not ready to apply? <a href="/book">Book a time</a> or <a href="/contact">send a message</a>.</p>
     </header>
     ${input.category ? "" : errors}
     ${chooser}

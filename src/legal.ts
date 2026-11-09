@@ -3,7 +3,7 @@ export function privacyHtml(): string {
   <p class="eyebrow">PaycoreOS, a DBA of Telecom Elite, Inc.</p>
   <h1>Privacy policy</h1>
   <p>1809 E Broadway St, Oviedo, FL 32765<br>(407) 270-2502<br><a href="mailto:info@paycoreos.com">info@paycoreos.com</a></p>
-  <p>Effective October 23, 2026.</p>
+  <p>Effective October 23, 2026. The contact and appointment section was added November 9, 2026.</p>
   <p>This page says what we collect when you use paycoreos.com, what we do with it, and what we do not do with it. The application fee is covered in the terms, not here.</p>
   <h2>Who we are</h2>
   <p>PaycoreOS is a name used by Telecom Elite, Inc. When this policy says "we," it means that company. The address and phone above are the ones to use. The address is a public business address.</p>
@@ -18,6 +18,11 @@ export function privacyHtml(): string {
   <p>After you apply, the portal shows a timeline, lets you upload more files, and lets you open a ticket.</p>
   <p>If you write to us, or we write to you, we keep that message. That includes tickets and email about the application.</p>
   <p>When something on your timeline changes in a way you are meant to see, we email you from an address on our domain, paycoreos.com. Notes our staff keep for themselves are not emailed and do not show on your timeline. Email delivery is marked and stored. It is sent when the inbox is ready.</p>
+  <h2>Contact messages and appointments</h2>
+  <p>If you use the contact form, we store your name, email, phone if you enter one, the reason you chose, and your message. A request for a call also stores what you sell, whether you already take cards or a bank declined the file, and a rough monthly card volume.</p>
+  <p>If you book a time, we store your name, email, phone, business name if you enter one, the reason for the call, any note, and the time. We also store whether you checked the box that agrees to calls and texts, and whether you checked the box that agrees to a recorded call. Those boxes start unchecked. You can book a time without checking them.</p>
+  <p>A booked call may be recorded only when you have agreed. Florida law requires every person on the call to consent before it is recorded.</p>
+  <p>We do not send the appointment to another system unless that connection is turned on in our admin. It is off unless we turn it on.</p>
   <h2>The $39 fee</h2>
   <p>If you pay the application fee, the payment company that runs checkout receives the card details. We receive the result: paid or not paid, the amount, and a reference number we can match to your application. Do not send us a card number by email or in a ticket.</p>
   <p>The fee is for our review and submission. It is not your customer processing. The terms explain when it is refunded. The pay button stays off, and the fee is not collected, until the fee account is ready.</p>

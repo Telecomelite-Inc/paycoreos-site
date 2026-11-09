@@ -6,6 +6,7 @@ export interface Env {
   SITE_ORIGIN: string;
   ADMIN_EMAIL?: string;
   ADMIN_PASSWORD?: string;
+  BOOKING_WEBHOOK_SECRET?: string;
 }
 
 export type Role = "admin" | "merchant";

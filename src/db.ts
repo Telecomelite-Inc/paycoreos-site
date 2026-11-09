@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   email TEXT NOT NULL,
   phone TEXT,
   message TEXT NOT NULL,
+  topic TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS call_requests (
@@ -177,8 +178,50 @@ CREATE TABLE IF NOT EXISTS call_requests (
   sells TEXT NOT NULL,
   card_status TEXT NOT NULL,
   monthly_volume TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS booking_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS booking_windows (
+  id TEXT PRIMARY KEY,
+  weekday INTEGER NOT NULL,
+  start_min INTEGER NOT NULL,
+  end_min INTEGER NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS booking_blocks (
+  id TEXT PRIMARY KEY,
+  starts_at TEXT NOT NULL,
+  ends_at TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bookings (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  business_name TEXT NOT NULL DEFAULT '',
+  topic TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  starts_at TEXT NOT NULL,
+  ends_at TEXT NOT NULL,
+  timezone TEXT NOT NULL,
+  tcpa_consent INTEGER NOT NULL DEFAULT 0,
+  tcpa_consent_text TEXT NOT NULL DEFAULT '',
+  recording_consent INTEGER NOT NULL DEFAULT 0,
+  recording_notice TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  webhook_status TEXT NOT NULL DEFAULT 'disabled',
+  webhook_payload TEXT NOT NULL DEFAULT '',
+  webhook_error TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_open_slot ON bookings(starts_at) WHERE status = 'scheduled';
+CREATE INDEX IF NOT EXISTS idx_bookings_starts ON bookings(starts_at);
 CREATE TABLE IF NOT EXISTS app_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -264,6 +307,7 @@ async function migrateAndSeed(env: Env): Promise<void> {
   }
   await ensureDeclinedFields(env);
   await ensureAdmin(env);
+  await ensureBooking(env);
 }
 
 async function ensureApplicationColumns(env: Env): Promise<void> {
@@ -278,6 +322,40 @@ async function ensureApplicationColumns(env: Env): Promise<void> {
   if (!names.has("callback_requested")) {
     await env.DB.prepare("ALTER TABLE applications ADD COLUMN callback_requested INTEGER NOT NULL DEFAULT 0").run();
   }
+}
+
+async function ensureColumn(env: Env, table: string, column: string, ddl: string): Promise<void> {
+  const info = await env.DB.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+  const names = new Set((info.results || []).map((row) => row.name));
+  if (!names.has(column)) await env.DB.prepare(ddl).run();
+}
+
+async function ensureBooking(env: Env): Promise<void> {
+  await ensureColumn(env, "contact_messages", "topic", "ALTER TABLE contact_messages ADD COLUMN topic TEXT NOT NULL DEFAULT ''");
+  await ensureColumn(env, "call_requests", "notes", "ALTER TABLE call_requests ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+  const seeded = await env.DB.prepare("SELECT value FROM booking_settings WHERE key = 'seeded'").first();
+  if (seeded) return;
+  const windows: [string, number][] = [
+    ["win_mon", 1],
+    ["win_tue", 2],
+    ["win_wed", 3],
+    ["win_thu", 4],
+    ["win_fri", 5],
+  ];
+  const statements = [
+    env.DB.prepare("INSERT OR IGNORE INTO booking_settings (key, value) VALUES ('slot_minutes', '30')"),
+    env.DB.prepare("INSERT OR IGNORE INTO booking_settings (key, value) VALUES ('days_ahead', '14')"),
+    env.DB.prepare("INSERT OR IGNORE INTO booking_settings (key, value) VALUES ('min_notice_hours', '4')"),
+    env.DB.prepare("INSERT OR IGNORE INTO booking_settings (key, value) VALUES ('webhook_enabled', '0')"),
+    env.DB.prepare("INSERT OR IGNORE INTO booking_settings (key, value) VALUES ('webhook_url', '')"),
+  ];
+  for (const [id, weekday] of windows) {
+    statements.push(
+      env.DB.prepare("INSERT OR IGNORE INTO booking_windows (id, weekday, start_min, end_min, active) VALUES (?, ?, 540, 1020, 1)").bind(id, weekday),
+    );
+  }
+  statements.push(env.DB.prepare("INSERT INTO booking_settings (key, value) VALUES ('seeded', '1')"));
+  await env.DB.batch(statements);
 }
 
 async function ensureDeclinedFields(env: Env): Promise<void> {

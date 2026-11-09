@@ -7,7 +7,20 @@ import { boot } from "./db";
 import { layout, simplePage } from "./layout";
 import { privacyHtml, termsHtml } from "./legal";
 import * as portal from "./portal";
-import { CALL_CARD, CALL_SELLS, CALL_VOLUME, callChoice, contactMain, marketingMain, seoOrThrow } from "./publicPages";
+import {
+  addBlock,
+  addWindow,
+  bookPage,
+  bookingThanks,
+  bookingsAdmin,
+  cancelBooking,
+  deleteBlock,
+  deleteWindow,
+  resendBookingWebhook,
+  saveBookingSettings,
+  submitBooking,
+} from "./booking";
+import { CALL_CARD, CALL_SELLS, CALL_VOLUME, CONTACT_TOPICS, callChoice, contactMain, marketingMain, seoOrThrow } from "./publicPages";
 import { llmsTxt, pageSeo, robotsTxt, sitemapXml } from "./seo";
 import type { Env, SessionUser } from "./types";
 import { cleanText, EMAIL, newId, nowIso } from "./util";
@@ -68,6 +81,7 @@ function asset(c: { env: Env; req: { raw: Request } }): Promise<Response> {
 app.get("/styles.css", (c) => asset(c));
 app.get("/track.js", (c) => asset(c));
 app.get("/apply.js", (c) => asset(c));
+app.get("/contact.js", (c) => asset(c));
 app.get("/assets/*", (c) => asset(c));
 
 app.get("/robots.txt", (c) => c.text(robotsTxt()));
@@ -97,22 +111,59 @@ app.get("/terms", (c) => {
 
 app.post("/contact", async (c) => {
   const form = await c.req.formData();
-  const name = cleanText(String(form.get("name") || ""), 200);
-  const email = cleanText(String(form.get("email") || ""), 200);
-  const phone = cleanText(String(form.get("phone") || ""), 40);
-  const message = cleanText(String(form.get("message") || ""), 4000);
-  if (!name || !email || !message) return c.redirect("/contact");
+  const values = {
+    name: cleanText(String(form.get("name") || ""), 200),
+    email: cleanText(String(form.get("email") || ""), 200),
+    phone: cleanText(String(form.get("phone") || ""), 40),
+    message: cleanText(String(form.get("message") || ""), 4000),
+    topic: String(form.get("topic") || ""),
+    sells: String(form.get("sells") || ""),
+    card_status: String(form.get("card_status") || ""),
+    monthly_volume: String(form.get("monthly_volume") || ""),
+  };
+  const url = new URL(c.req.url);
+  if (values.topic === "call") {
+    const sells = callChoice(CALL_SELLS, values.sells);
+    const cardStatus = callChoice(CALL_CARD, values.card_status);
+    const volume = callChoice(CALL_VOLUME, values.monthly_volume);
+    const errors: string[] = [];
+    if (!values.name) errors.push("Name is required.");
+    if (values.phone.replace(/\D/g, "").length < 7) errors.push("Phone is required.");
+    if (!values.email.includes("@") || !values.email.includes(".")) errors.push("Email is required.");
+    if (!sells) errors.push("Choose what you sell.");
+    if (!cardStatus) errors.push("Say whether you already take cards or a bank declined the file.");
+    if (!volume) errors.push("Choose a rough monthly card volume.");
+    if (errors.length || !sells || !cardStatus || !volume) {
+      return c.html(layout({ hostname: url.hostname, seo: pageSeo("/contact")!, main: contactMain(url, { errors, values }) }), 400);
+    }
+    await saveCallRequest(c, values.name, values.phone, values.email, sells, cardStatus, volume, values.message);
+    return c.redirect("/thank-you?for=call");
+  }
+  const topicLabel = callChoice(CONTACT_TOPICS, values.topic);
+  if (values.topic && !topicLabel) {
+    return c.html(layout({ hostname: url.hostname, seo: pageSeo("/contact")!, main: contactMain(url, { errors: ["Choose a reason."], values }) }), 400);
+  }
+  if (!values.name || !values.email || !values.message) {
+    if (!values.topic) return c.redirect("/contact");
+    const errors: string[] = [];
+    if (!values.name) errors.push("Name is required.");
+    if (!values.email.includes("@") || !values.email.includes(".")) errors.push("Email is required.");
+    if (!values.message) errors.push("Message is required.");
+    return c.html(layout({ hostname: url.hostname, seo: pageSeo("/contact")!, main: contactMain(url, { errors, values }) }), 400);
+  }
   const stamp = nowIso();
-  await c.env.DB.prepare("INSERT INTO contact_messages (id, name, email, phone, message, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(newId("msg"), name, email, phone, message, stamp)
+  const topic = topicLabel || "A general question";
+  await c.env.DB.prepare("INSERT INTO contact_messages (id, name, email, phone, message, topic, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .bind(newId("msg"), values.name, values.email, values.phone, values.message, topic, stamp)
     .run();
   await queueEmail(c.env.DB, {
     to: EMAIL,
-    subject: `PaycoreOS contact from ${name}`,
-    body: `${name}\n${email}\n${phone}\n\n${message}`,
+    subject: `PaycoreOS contact from ${values.name}`,
+    body: `${values.name}\n${values.email}\n${values.phone}\n${topic}\n\n${values.message}`,
     applicationId: null,
   });
-  return c.redirect("/contact?received=1");
+  if (!values.topic) return c.redirect("/contact?received=1");
+  return c.redirect("/thank-you?for=message");
 });
 
 app.post("/contact/call", async (c) => {
@@ -124,6 +175,7 @@ app.post("/contact/call", async (c) => {
     sells: String(form.get("sells") || ""),
     card_status: String(form.get("card_status") || ""),
     monthly_volume: String(form.get("monthly_volume") || ""),
+    topic: "call",
   };
   const sells = callChoice(CALL_SELLS, values.sells);
   const cardStatus = callChoice(CALL_CARD, values.card_status);
@@ -136,39 +188,48 @@ app.post("/contact/call", async (c) => {
   if (!cardStatus) errors.push("Say whether you already take cards or a bank declined the file.");
   if (!volume) errors.push("Choose a rough monthly card volume.");
   const url = new URL(c.req.url);
-  if (errors.length) {
+  if (errors.length || !sells || !cardStatus || !volume) {
     return c.html(layout({ hostname: url.hostname, seo: pageSeo("/contact")!, main: contactMain(url, { errors, values }) }), 400);
   }
-  const stamp = nowIso();
-  await c.env.DB.prepare(
-    "INSERT INTO call_requests (id, name, phone, email, sells, card_status, monthly_volume, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-  )
-    .bind(newId("call"), values.name, values.phone, values.email, sells, cardStatus, volume, stamp)
-    .run();
-  await queueEmail(c.env.DB, {
-    to: EMAIL,
-    subject: `PaycoreOS call request from ${values.name}`,
-    body: `${values.name}\n${values.phone}\n${values.email}\n${sells}\n${cardStatus}\n${volume}\n\nThis is a call request. It is not a fee payment.`,
-    applicationId: null,
-  });
+  await saveCallRequest(c, values.name, values.phone, values.email, sells, cardStatus, volume, "");
   return c.redirect("/contact?booked=1#book");
 });
+
+app.get("/book", (c) => bookPage(c));
+app.post("/book", (c) => submitBooking(c));
 
 app.get("/apply", (c) => renderApply(c));
 app.post("/apply", (c) => submitApply(c));
 app.get("/apply/fee", (c) => renderFee(c));
 
-app.get("/thank-you", (c) => {
+app.get("/thank-you", async (c) => {
   const url = new URL(c.req.url);
+  const kind = url.searchParams.get("for") || "";
+  let h1 = "Thank you";
+  let body = `<p>This page confirms a message or an appointment. It is not a payment receipt. The $39 application fee is not collected here.</p>
+    <p><a href="/contact">Send a message</a> · <a href="/book">Book a time</a> · <a href="/apply">Apply</a></p>`;
+  if (kind === "message") {
+    h1 = "Message saved";
+    body = `<p class="ok" role="status">We saved your message. Email from this site is not being sent yet. If you need an answer now, call (407) 270-2502.</p>
+      <p>This page is not a payment receipt. The $39 application fee is not collected here.</p>
+      <p><a href="/book">Prefer to pick a time?</a></p>`;
+  } else if (kind === "call") {
+    h1 = "Call requested";
+    body = `<p class="ok" role="status">PaycoreOS will call. The call is about 20 minutes.</p>
+      <p>This page is not a payment receipt. The $39 application fee is not collected here.</p>
+      <p><a href="/book">Prefer to pick a time?</a></p>`;
+  } else if (kind === "booking") {
+    h1 = "Appointment saved";
+    body = await bookingThanks(c.env.DB, url.searchParams.get("ref") || "");
+  }
   return c.html(
     simplePage({
       hostname: url.hostname,
       path: "/thank-you",
-      title: "Not found | PaycoreOS",
-      h1: "Page not found",
-      body: "<p>This page is not available. The application fee is not being collected.</p>",
+      title: `${h1} | PaycoreOS`,
+      h1,
+      body,
     }),
-    404,
   );
 });
 
@@ -232,6 +293,14 @@ app.get("/admin/ticket-types/:id", (c) => admin.ticketTypeEdit(c, c.req.param("i
 app.post("/admin/ticket-types/:id", (c) => admin.saveTicketType(c, c.req.param("id")));
 app.post("/admin/ticket-types/:id/delete", (c) => admin.deleteTicketType(c, c.req.param("id")));
 app.get("/admin/messages", (c) => admin.messages(c));
+app.get("/admin/bookings", (c) => bookingsAdmin(c));
+app.post("/admin/bookings/settings", (c) => saveBookingSettings(c));
+app.post("/admin/bookings/windows", (c) => addWindow(c));
+app.post("/admin/bookings/windows/:id/delete", (c) => deleteWindow(c, c.req.param("id")));
+app.post("/admin/bookings/blocks", (c) => addBlock(c));
+app.post("/admin/bookings/blocks/:id/delete", (c) => deleteBlock(c, c.req.param("id")));
+app.post("/admin/bookings/:id/cancel", (c) => cancelBooking(c, c.req.param("id")));
+app.post("/admin/bookings/:id/webhook", (c) => resendBookingWebhook(c, c.req.param("id")));
 app.get("/admin/outbox", (c) => admin.outbox(c));
 app.get("/admin/files/:id", (c) => admin.download(c, c.req.param("id")));
 
@@ -248,6 +317,30 @@ app.notFound((c) => {
     404,
   );
 });
+
+async function saveCallRequest(
+  c: Context<{ Bindings: Env; Variables: { user: SessionUser | null } }>,
+  name: string,
+  phone: string,
+  email: string,
+  sells: string,
+  cardStatus: string,
+  volume: string,
+  notes: string,
+): Promise<void> {
+  const stamp = nowIso();
+  await c.env.DB.prepare(
+    "INSERT INTO call_requests (id, name, phone, email, sells, card_status, monthly_volume, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(newId("call"), name, phone, email, sells, cardStatus, volume, notes, stamp)
+    .run();
+  await queueEmail(c.env.DB, {
+    to: EMAIL,
+    subject: `PaycoreOS call request from ${name}`,
+    body: `${name}\n${phone}\n${email}\n${sells}\n${cardStatus}\n${volume}\n${notes}\n\nThis is a call request. It is not a fee payment.`,
+    applicationId: null,
+  });
+}
 
 async function merchantOnly(c: Context<{ Bindings: Env; Variables: { user: SessionUser | null } }>, next: Next) {
   if (c.req.path === "/portal/login") return next();

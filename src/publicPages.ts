@@ -11,7 +11,7 @@ function offerPage(
   const actions = (callLink: boolean) => `<div class="home-cta">
       <a class="btn-p" href="${href}">Apply</a>
       ${fee}
-      ${callLink ? `<p class="home-call"><a href="${esc(apply("/contact"))}#book">Want a read on the file first?</a></p>` : ""}
+      ${callLink ? `<p class="home-call"><a href="${esc(apply("/book"))}">Want a read on the file first?</a></p>` : ""}
     </div>`;
   const proof =
     opts.boarding === false
@@ -39,7 +39,7 @@ function offerPage(
     <ol class="step-list">
       <li><h3>Tell us how you take payments</h3><p>The form matches the business. You say what you sell and how the card is taken.</p></li>
       <li><h3>We review the file</h3><p>Most underwriting decisions within 24–72 business hours. That is the usual pace. It is not a promise of approval.</p></li>
-      <li><h3>We call you</h3><p>PaycoreOS calls to go over the file. The call is about 20 minutes.</p></li>
+      <li><h3>We call you</h3><p>PaycoreOS calls to go over the file. The call is about 20 minutes. <a href="${esc(apply("/book"))}">Pick a time</a>.</p></li>
     </ol>
   </section>
   <section class="land-story wrap">${opts.story}</section>
@@ -70,6 +70,13 @@ export const CALL_SELLS = [
 export const CALL_CARD = [
   ["already", "Already take cards"],
   ["declined", "A bank declined them"],
+] as const;
+
+export const CONTACT_TOPICS = [
+  ["question", "A general question"],
+  ["application", "A question about an application"],
+  ["merchant", "I am already a merchant"],
+  ["call", "Request a call about my file"],
 ] as const;
 
 export const CALL_VOLUME = [
@@ -236,6 +243,7 @@ export function marketingMain(path: string, url: URL, contactReceived: boolean):
         <h1>Merchant processing, gateways, point of sale, and dispute defense</h1>
         <p class="lede">Capabilities only. We match the account, the gateway or terminal, and dispute defense to the way you take payments. We do not publish a processing rate.</p>
         <div class="hero-actions"><a class="btn-p" href="${esc(apply("/apply"))}">Apply</a></div>
+        <p class="home-call"><a href="${esc(apply("/book"))}">Want a read on the file first?</a></p>
       </header>
       <section class="wrap">
         <h2>Take the payment</h2>
@@ -265,7 +273,7 @@ export function marketingMain(path: string, url: URL, contactReceived: boolean):
         <p>There is no one-size-fits-all account. The form asks how you take payments. A person submits the file. The merchant portal never names the company that received it.</p>
         <h2>Office</h2>
         <p>PaycoreOS, a DBA of Telecom Elite, Inc.<br>${ADDRESS}<br><a href="tel:${PHONE_TEL}">${PHONE_DISPLAY}</a><br><a href="mailto:${EMAIL}">${EMAIL}</a></p>
-        <p><a class="btn-p" href="${esc(apply("/apply"))}">Apply</a></p>
+        <p><a class="btn-p" href="${esc(apply("/apply"))}">Apply</a> <a class="btn-s" href="${esc(apply("/book"))}">Book a time</a></p>
       </article>`;
     case "/contact":
       return contactMain(url, { received: contactReceived });
@@ -288,6 +296,7 @@ export function marketingMain(path: string, url: URL, contactReceived: boolean):
         <p>Only when we cannot submit for a reason on our side. We make that refund within 10 business days after it is clear we cannot submit. A decline is not a refund.</p>
         <p>The full terms are on the <a href="/terms">terms page</a>. Customer payments for your business are not taken through this fee.</p>
         <p><a class="btn-p" href="${esc(apply("/apply"))}">Apply</a></p>
+        <p><a href="${esc(apply("/contact"))}">Questions about the fee?</a> <a href="${esc(apply("/book"))}">Book a time</a> if you want to talk it through.</p>
       </article>`;
     default:
       return null;
@@ -321,7 +330,7 @@ function homePage(apply: (href: string) => string): string {
       <div class="home-cta">
         <a class="btn-p" href="${esc(apply("/apply"))}">Apply</a>
         <p class="home-fee">The application fee is $39.</p>
-        <p class="home-call"><a href="${esc(apply("/contact"))}#book">Want a read on the file first?</a></p>
+        <p class="home-call"><a href="${esc(apply("/book"))}">Want a read on the file first?</a></p>
       </div>
     </div>
     <figure class="home-hero-figure">
@@ -363,57 +372,65 @@ export function contactMain(
   state: { received?: boolean; booked?: boolean; errors?: string[]; values?: Record<string, string> },
 ): string {
   const values = state.values || {};
+  const showCall = values.topic === "call";
   const errors = state.errors?.length
-    ? `<div class="errors" role="alert"><p>Fix the form before the call can be saved.</p><ul>${state.errors.map((item) => `<li>${esc(item)}</li>`).join("")}</ul></div>`
+    ? `<div class="errors" role="alert"><p>Fix the form before it can be sent.</p><ul>${state.errors.map((item) => `<li>${esc(item)}</li>`).join("")}</ul></div>`
     : "";
   const booked = url.searchParams.get("booked") === "1" || state.booked;
+  const received = state.received
+    ? '<p class="ok" role="status">We saved your message. Email from this site is not being sent yet. If you need an answer now, call (407) 270-2502.</p>'
+    : "";
+  const bookedNote = booked ? '<p class="ok" role="status">PaycoreOS will call. The call is about 20 minutes.</p>' : "";
   return `<article class="wrap">
     <header class="page-head"><h1>Contact PaycoreOS</h1>
-    <p class="lede">Call, email, or send a note. The inbox at ${EMAIL} is the address to use. If email is quiet, call.</p></header>
-    <section id="book" class="call-form">
-      <h2>Want a read on the file first?</h2>
-      <p${booked ? ' class="ok" role="status"' : ""}>PaycoreOS will call. The call is about 20 minutes.</p>
-      ${errors}
-      <form class="stack-form" method="post" action="/contact/call">
-        <label>Name<input name="name" required autocomplete="name" value="${esc(values.name || "")}"></label>
-        <label>Phone<input name="phone" type="tel" required autocomplete="tel" value="${esc(values.phone || "")}"></label>
-        <label>Email<input name="email" type="email" required autocomplete="email" value="${esc(values.email || "")}"></label>
+    <p class="lede">Send one message. Choose a reason. If you want PaycoreOS to call about the file, pick that reason. To choose the time yourself, book an appointment.</p></header>
+    ${received}
+    ${bookedNote}
+    ${errors}
+    <form id="contact-form" class="stack-form" method="post" action="/contact">
+      <label>Name<input name="name" required autocomplete="name" value="${esc(values.name || "")}"></label>
+      <label>Email<input name="email" type="email" required autocomplete="email" value="${esc(values.email || "")}"></label>
+      <label>Phone<input name="phone" type="tel" autocomplete="tel" value="${esc(values.phone || "")}"${showCall ? " required" : ""}></label>
+      <label>Reason
+        <select name="topic" required>
+          <option value="">Choose</option>
+          ${options(CONTACT_TOPICS, values.topic || "")}
+        </select>
+      </label>
+      <fieldset id="call-fields" class="call-fields"${showCall ? "" : " hidden"}>
         <label>What do you sell?
-          <select name="sells" required>
+          <select name="sells"${showCall ? " required" : ""}>
             <option value="">Choose</option>
             ${options(CALL_SELLS, values.sells || "")}
           </select>
         </label>
         <label>Already taking cards, or did a bank decline the file?
-          <select name="card_status" required>
+          <select name="card_status"${showCall ? " required" : ""}>
             <option value="">Choose</option>
             ${options(CALL_CARD, values.card_status || "")}
           </select>
         </label>
         <label>Rough monthly card volume
-          <select name="monthly_volume" required>
+          <select name="monthly_volume"${showCall ? " required" : ""}>
             <option value="">Choose</option>
             ${options(CALL_VOLUME, values.monthly_volume || "")}
           </select>
         </label>
-        <button class="btn-p" type="submit">Request a call</button>
-      </form>
+      </fieldset>
+      <label>Message<span class="help">Required unless you are requesting a call.</span><textarea name="message"${showCall ? "" : " required"}>${esc(values.message || "")}</textarea></label>
+      <button class="btn-p" type="submit">${showCall ? "Request a call" : "Send message"}</button>
+    </form>
+    <section id="book" class="call-form">
+      <h2>Want a set time?</h2>
+      <p>Book an appointment and PaycoreOS will call at that time. The call is about 20 minutes.</p>
+      <p><a class="btn-s" href="/book">Book a time</a></p>
     </section>
-    <div class="split">
-      <div>
-        <p><span class="k">Phone</span><br><a href="tel:${PHONE_TEL}">${PHONE_DISPLAY}</a></p>
-        <p><span class="k">Email</span><br><a href="mailto:${EMAIL}">${EMAIL}</a></p>
-        <p><span class="k">Address</span><br>PaycoreOS, a DBA of Telecom Elite, Inc.<br>${ADDRESS}</p>
-      </div>
-      <form class="stack-form" method="post" action="/contact">
-        ${state.received ? '<p class="ok" role="status">We saved your message. Email from this site is not being sent yet. If you need an answer now, call (407) 270-2502.</p>' : ""}
-        <label>Name<input name="name" required autocomplete="name"></label>
-        <label>Email<input name="email" type="email" required autocomplete="email"></label>
-        <label>Phone<input name="phone" type="tel" autocomplete="tel"></label>
-        <label>Message<textarea name="message" required></textarea></label>
-        <button class="btn-s" type="submit">Send message</button>
-      </form>
+    <div class="contact-facts">
+      <p><span class="k">Phone</span><br><a href="tel:${PHONE_TEL}">${PHONE_DISPLAY}</a></p>
+      <p><span class="k">Email</span><br><a href="mailto:${EMAIL}">${EMAIL}</a></p>
+      <p><span class="k">Address</span><br>PaycoreOS, a DBA of Telecom Elite, Inc.<br>${ADDRESS}</p>
     </div>
+    <script src="/contact.js" defer></script>
   </article>`;
 }
 
