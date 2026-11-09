@@ -2,3 +2,6 @@
 # Production uses `wrangler secret put` for these names. Never commit the values.
 ADMIN_EMAIL=admin@paycoreos.com
 ADMIN_PASSWORD=replace-with-at-least-10-characters
+
+# Optional later, for the booking webhook. Leave unset. Do not commit a real value.
+# BOOKING_WEBHOOK_SECRET=

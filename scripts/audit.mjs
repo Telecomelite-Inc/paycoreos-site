@@ -4,7 +4,7 @@ const failures = [];
 function fail(msg) { failures.push(msg); console.error("FAIL", msg); }
 function ok(msg) { console.log("OK", msg); }
 
-const pages = ["/", "/call-centers", "/ecommerce", "/retail", "/restaurants", "/switching", "/startups", "/declined", "/dispute-defense", "/services", "/apply", "/about", "/contact", "/privacy", "/terms", "/application-fee"];
+const pages = ["/", "/call-centers", "/ecommerce", "/retail", "/restaurants", "/switching", "/startups", "/declined", "/dispute-defense", "/services", "/apply", "/about", "/book", "/contact", "/privacy", "/terms", "/application-fee"];
 const html = {};
 for (const path of pages) {
   const res = await fetch(base + path);
@@ -89,7 +89,7 @@ if (!html["/"].includes("Merchant processing")) fail("home missing eyebrow");
 if (!html["/"].includes("/assets/home/home-hero.jpg")) fail("home missing hero graphic");
 if ((html["/"].match(/class="btn-p"/g) || []).length !== 1) fail("home should have one primary Apply button");
 if (!html["/"].includes(">Want a read on the file first?</a>")) fail("home missing call link");
-if (!html["/"].includes('href="/contact#book"') && !html["/"].includes("#book")) fail("home call link missing #book");
+if (!html["/"].includes('href="/book"') && !html["/"].includes('href="/book?')) fail("home call link should go to /book");
 const homeFooter = html["/"].match(/<footer class="site-footer">[\s\S]*?<\/footer>/)?.[0] || "";
 if (/1809 E Broadway|\(407\) 270-2502|info@paycoreos.com|which company receives/i.test(homeFooter)) fail("homepage footer shows contact identity");
 const homeVisible = html["/"].replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g, "");
@@ -103,8 +103,10 @@ if (/name="file_decline_notice"[^>]*required/.test(declinedApply)) fail("decline
 if (banned.test(declinedApply)) fail("declined apply names a supplier");
 const thanks = await fetch(base + "/thank-you");
 const thanksHtml = await thanks.text();
-if (thanks.status !== 404) fail(`thank-you status ${thanks.status}`);
+if (thanks.status !== 200) fail(`thank-you status ${thanks.status}`);
 if (!thanksHtml.includes("noindex")) fail("thank-you missing noindex");
+if (!thanksHtml.includes("The $39 application fee is not collected here.")) fail("thank-you missing fee note");
+if (thanksHtml.includes("fee_paid") || thanksHtml.includes("Page not found")) fail("thank-you looks like a missing page or a payment");
 if (banned.test(thanksHtml)) fail("thank-you names a supplier");
 
 const robots = await (await fetch(base + "/robots.txt")).text();
@@ -288,7 +290,10 @@ const sent = await fetch(base + "/contact", { method: "POST", body: contact, red
 if (sent.status < 300 || sent.status > 399) fail(`contact ${sent.status}`);
 const received = await (await fetch(base + "/contact?received=1")).text();
 if (!received.includes("We saved your message")) fail("contact confirmation missing");
-if (!html["/contact"].includes('id="book"')) fail("contact missing call form");
+if ((html["/contact"].match(/<form\b/g) || []).length !== 1) fail("contact should have one form");
+if (!html["/contact"].includes('name="topic"')) fail("contact missing reason selector");
+if (!html["/contact"].includes('id="book"')) fail("contact missing booking pointer");
+if (!html["/contact"].includes('href="/book"')) fail("contact missing book link");
 if (!html["/contact"].includes("Already take cards") || !html["/contact"].includes("A bank declined them")) fail("contact call form missing card status");
 if (!html["/contact"].includes("Rough monthly card volume")) fail("contact call form missing volume");
 if (/<iframe|calendly|calendar\.google/i.test(html["/contact"])) fail("contact embeds a calendar");
@@ -361,6 +366,69 @@ if (declinedSubmit.status !== 303) {
   }
   if (messages.includes("fee_paid")) fail("call request stored as fee_paid");
   ok("declined application " + ref);
+}
+
+const bookPage = html["/book"];
+const tcpa = bookPage.match(/<input[^>]*name="tcpa_consent"[^>]*>/);
+const recording = bookPage.match(/<input[^>]*name="recording_consent"[^>]*>/);
+if (!tcpa) fail("book page missing TCPA checkbox");
+else if (/\bchecked\b/.test(tcpa[0])) fail("TCPA checkbox is checked by default");
+if (!recording) fail("book page missing recording checkbox");
+else if (/\bchecked\b/.test(recording[0])) fail("recording checkbox is checked by default");
+if (!bookPage.includes("Florida law requires all parties")) fail("book page missing Florida recording notice");
+if (/<iframe|calendly|calendar\.google/i.test(bookPage)) fail("book page embeds a calendar");
+const slot = bookPage.match(/name="starts_at" value="([^"]+)"/)?.[1];
+if (!slot) fail("book page has no open slot");
+else {
+  const booking = new FormData();
+  booking.set("name", "Riley Booker");
+  booking.set("email", "riley@example.com");
+  booking.set("phone", "407-555-0177");
+  booking.set("business_name", "Riley Retail LLC");
+  booking.set("topic", "file-read");
+  booking.set("notes", "Call about a first account.");
+  booking.set("starts_at", slot);
+  booking.set("date", bookPage.match(/name="date" value="([^"]+)"/)?.[1] || "");
+  const booked = await fetch(base + "/book", { method: "POST", body: booking, redirect: "manual" });
+  const bookedLoc = booked.headers.get("location") || "";
+  if (booked.status < 300 || booked.status > 399 || !bookedLoc.includes("/thank-you?for=booking")) {
+    const err = await booked.text();
+    fail(`booking ${booked.status} ${bookedLoc} ${err.slice(0, 400)}`);
+  } else {
+    const thanksBook = await (await fetch(base + bookedLoc)).text();
+    if (!thanksBook.includes("Riley Booker") || !thanksBook.includes("Your time is saved.")) fail("booking confirmation missing");
+    if (thanksBook.includes("fee_paid")) fail("booking confirmation fired fee_paid");
+    if (!thanksBook.includes("You did not check the box")) fail("booking confirmation should record that TCPA was not checked");
+    if (!thanksBook.includes("You did not agree to a recording.")) fail("booking confirmation should record that recording consent was not checked");
+    const adminForm = new FormData();
+    adminForm.set("email", "admin@paycoreos.com");
+    adminForm.set("password", process.env.ADMIN_PASSWORD || "");
+    const adminLogin = await fetch(base + "/admin/login", { method: "POST", body: adminForm, redirect: "manual" });
+    const adminCookie = (adminLogin.headers.getSetCookie?.() || []).find((c) => c.startsWith("paycore_session="));
+    if (!adminCookie) fail("admin login for bookings failed");
+    else {
+      const adminBookings = await (await fetch(base + "/admin/bookings", { headers: { cookie: adminCookie.split(";")[0] } })).text();
+      if (!adminBookings.includes("Riley Booker")) fail("admin bookings missing the appointment");
+      if (!adminBookings.includes(">No<")) fail("admin bookings missing a consent column");
+      if (/name="webhook_enabled"[^>]*checked/.test(adminBookings)) fail("webhook is on by default");
+      if (!adminBookings.includes("booking.created")) fail("admin missing webhook documentation");
+      const dash = await (await fetch(base + "/admin", { headers: { cookie: adminCookie.split(";")[0] } })).text();
+      if (!dash.includes("Riley Booker")) fail("admin dashboard missing the upcoming appointment");
+    }
+  }
+}
+const merged = new FormData();
+merged.set("name", "Morgan Message");
+merged.set("email", "morgan@example.com");
+merged.set("phone", "407-555-0188");
+merged.set("topic", "question");
+merged.set("message", "Where do I send a statement?");
+const mergedSent = await fetch(base + "/contact", { method: "POST", body: merged, redirect: "manual" });
+const mergedLoc = mergedSent.headers.get("location") || "";
+if (!mergedLoc.includes("/thank-you?for=message")) fail(`merged contact redirect ${mergedSent.status} ${mergedLoc}`);
+else {
+  const mergedThanks = await (await fetch(base + mergedLoc)).text();
+  if (!mergedThanks.includes("We saved your message")) fail("merged contact confirmation missing");
 }
 
 if (failures.length) {

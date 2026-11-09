@@ -5,6 +5,7 @@ import { rowToField, type FieldDef, type FieldType } from "./fields";
 import { appShell } from "./layout";
 import { merchantEmailBody, queueEmail } from "./mail";
 import type { Env, SessionUser } from "./types";
+import { upcomingBookingsHtml } from "./booking";
 import { categoryLabel, esc, formatWhen, newId, nowIso } from "./util";
 
 type Ctx = Context<{ Bindings: Env; Variables: { user: SessionUser | null } }>;
@@ -63,8 +64,10 @@ export async function applications(c: Ctx): Promise<Response> {
       </tr>`,
     )
     .join("");
+  const upcoming = await upcomingBookingsHtml(c.env.DB);
   const body = `<h1>Applications</h1>
-    <table><thead><tr><th>Ref</th><th>Business</th><th>Category</th><th>Status</th><th>Processor</th><th>Bank decline</th><th>Callback</th><th>Fee</th><th>Created</th></tr></thead><tbody>${list || `<tr><td colspan="9">No applications yet.</td></tr>`}</tbody></table>`;
+    <table><thead><tr><th>Ref</th><th>Business</th><th>Category</th><th>Status</th><th>Processor</th><th>Bank decline</th><th>Callback</th><th>Fee</th><th>Created</th></tr></thead><tbody>${list || `<tr><td colspan="9">No applications yet.</td></tr>`}</tbody></table>
+    ${upcoming}`;
   return c.html(shell(c, "Applications", "/admin", body));
 }
 
@@ -551,20 +554,20 @@ function ticketTypeForm(action: string, row: Record<string, string | number> | n
 
 export async function messages(c: Ctx): Promise<Response> {
   const calls = await c.env.DB.prepare(
-    "SELECT name, phone, email, sells, card_status, monthly_volume, created_at FROM call_requests ORDER BY created_at DESC LIMIT 100",
+    "SELECT name, phone, email, sells, card_status, monthly_volume, notes, created_at FROM call_requests ORDER BY created_at DESC LIMIT 100",
   ).all<Record<string, string>>();
-  const rows = await c.env.DB.prepare("SELECT name, email, phone, message, created_at FROM contact_messages ORDER BY created_at DESC LIMIT 100").all<Record<string, string>>();
+  const rows = await c.env.DB.prepare("SELECT name, email, phone, message, topic, created_at FROM contact_messages ORDER BY created_at DESC LIMIT 100").all<Record<string, string>>();
   const callList = (calls.results || [])
     .map(
-      (r) => `<li><strong>${esc(r.name)}</strong> · ${esc(r.phone)} · ${esc(r.email)}<br>${esc(r.sells)} · ${esc(r.card_status)} · ${esc(r.monthly_volume)}<br><span>${esc(formatWhen(r.created_at))}</span></li>`,
+      (r) => `<li><strong>${esc(r.name)}</strong> · ${esc(r.phone)} · ${esc(r.email)}<br>${esc(r.sells)} · ${esc(r.card_status)} · ${esc(r.monthly_volume)}${r.notes ? `<br>${esc(r.notes)}` : ""}<br><span>${esc(formatWhen(r.created_at))}</span></li>`,
     )
     .join("");
   const body = `<h1>Messages</h1>
     <h2>Call requests</h2>
-    <p class="help">A call request is not a fee payment. Ads still use the fee payment as the only bidding conversion.</p>
+    <p class="help">A call request is not a fee payment. Ads still use the fee payment as the only bidding conversion. Appointments are on <a href="/admin/bookings">Bookings</a>.</p>
     <ul class="plain-list">${callList || "<li>No call requests.</li>"}</ul>
     <h2>Contact messages</h2>
-    <ul class="plain-list">${(rows.results || []).map((r) => `<li><strong>${esc(r.name)}</strong> · ${esc(r.email)} · ${esc(r.phone || "")}<br>${esc(r.message)}<br><span>${esc(formatWhen(r.created_at))}</span></li>`).join("") || "<li>No messages.</li>"}</ul>`;
+    <ul class="plain-list">${(rows.results || []).map((r) => `<li><strong>${esc(r.name)}</strong> · ${esc(r.email)} · ${esc(r.phone || "")}${r.topic ? ` · ${esc(r.topic)}` : ""}<br>${esc(r.message)}<br><span>${esc(formatWhen(r.created_at))}</span></li>`).join("") || "<li>No messages.</li>"}</ul>`;
   return c.html(shell(c, "Messages", "/admin/messages", body));
 }
 

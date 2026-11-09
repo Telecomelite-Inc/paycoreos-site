@@ -58,7 +58,7 @@ nav {
   text-transform: uppercase;
   color: #2a4651;
 }
-.nl { display: flex; gap: 22px; align-items: center; list-style: none; margin: 0; padding: 0; }
+.nl { display: flex; gap: 16px; align-items: center; list-style: none; margin: 0; padding: 0; }
 .nl a {
   color: #4a6a55;
   font-family: Montserrat, sans-serif;
@@ -262,8 +262,21 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 .home-call { flex-basis: 100%; margin: 0; font-size: 1.08rem; }
 .home-call a { color: var(--teal-d); font-weight: 600; }
 #book { scroll-margin-top: 120px; }
-.call-form { max-width: 42rem; margin-bottom: 48px; }
+.call-form { max-width: 42rem; margin: 36px 0; }
 .call-form h2 { margin-top: 0; }
+.call-fields { border: 0; margin: 0; padding: 0; min-inline-size: 0; display: grid; gap: 12px; }
+.call-fields[hidden] { display: none; }
+.contact-facts { display: grid; gap: 8px; margin-top: 12px; }
+.day-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+.day-list a { text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; color: var(--teal-d); background: #fff; }
+.day-list a[aria-current="date"] { background: var(--green); color: #fff; border-color: var(--green); }
+.slot-set { border: 0; margin: 0 0 8px; padding: 0; min-inline-size: 0; }
+.slot-set legend { font-weight: 700; margin-bottom: 8px; }
+.slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; }
+.slot-grid label { display: flex; gap: 8px; align-items: center; font-weight: 500; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
+.slot-grid input { width: auto; }
+.legal-note { background: #f8f6ef; border-left: 4px solid #a6842a; padding: 12px 14px; margin: 8px 0; max-width: 42rem; }
+.legal-note p { margin: 0 0 10px; }
 .home-cta .btn-p {
   font-size: 1.05rem;
   padding: 18px 32px;

@@ -105,6 +105,13 @@ export const PAGES: PageSeo[] = [
     h1: "Contact PaycoreOS",
   },
   {
+    path: "/book",
+    title: "Book a time | PaycoreOS",
+    description:
+      "Book a time for a PaycoreOS call. Pick an open slot. The call is about 20 minutes. The $39 application fee is not charged on this page.",
+    h1: "Book a time with PaycoreOS",
+  },
+  {
     path: "/privacy",
     title: "Privacy policy | PaycoreOS",
     description:
@@ -218,7 +225,8 @@ ${EMAIL}
 - [Services](${SITE_ORIGIN}/services): Capabilities, gateways, and dispute defense
 - [Apply](${SITE_ORIGIN}/apply): The application
 - [About](${SITE_ORIGIN}/about): Telecom Elite, Inc., since 2013
-- [Contact](${SITE_ORIGIN}/contact): Phone, email, and address
+- [Book a time](${SITE_ORIGIN}/book): Pick an open time for a call
+- [Contact](${SITE_ORIGIN}/contact): One contact form, plus phone, email, and address
 - [Application fee](${SITE_ORIGIN}/application-fee): The $39 fee and the refund rule
 - [Privacy](${SITE_ORIGIN}/privacy): Privacy policy
 - [Terms](${SITE_ORIGIN}/terms): Terms of use
